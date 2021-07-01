@@ -11,10 +11,10 @@ Sample project for https://github.com/puma/puma/issues/2655
 
 The last lines in the the `/tmp/puma_2655.log` will look similar to this:
 ```
-!!! adding work << pid=38519 @spawned=1 @waiting=1 @todo.size=1
-!!! busy_threads pid=38519 @spawned=1 @waiting=1 @todo.size=0 busy_threads=0
-!!! requesting thread trim pid=38519 @spawned=1 @waiting=1 @trim_requested=1
-!!! adding work << pid=38519 @spawned=1 @waiting=1 @todo.size=1
-!!! busy_threads pid=38519 @spawned=1 @waiting=1 @todo.size=1 busy_threads=1
-!!! trimming thread pid=38519 thread="puma threadpool 001" @spawned=0 @waiting=0 @trim_requested=0
+[2021-07-01 14:53:16 -0700] requesting thread trim pid=48754 @spawned=1 @waiting=1 @trim_requested=1
+[2021-07-01 14:53:16 -0700] busy_threads pid=48754 @spawned=1 @waiting=1 @todo.size=0 busy_threads=0
+[2021-07-01 14:53:16 -0700] adding work << pid=48754 @spawned=1 @waiting=1 @todo.size=1
+[2021-07-01 14:53:16 -0700] executing work pid=48754 thread="puma threadpool 001" @spawned=1 @waiting=0 todo.size=0
+[2021-07-01 14:53:16 -0700] busy_threads pid=48754 @spawned=1 @waiting=0 @todo.size=0 busy_threads=1
+[2021-07-01 14:53:16 -0700] trimming thread pid=48754 thread="puma threadpool 001" @spawned=0 @waiting=0 @trim_requested=0
 ```

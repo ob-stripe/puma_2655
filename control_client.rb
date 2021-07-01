@@ -37,7 +37,7 @@ def puma_stats
       query: query,
       expects: [200],
     )
-    
+
     # If the request is successful, reduce read_timeout by 10%
     $read_timeout *= 0.9
 

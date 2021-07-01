@@ -2,8 +2,23 @@
 
 require 'puma'
 
+FORCE_AUTO_TRIM_TIME = 1.0
+
 $log_file = File.open('/tmp/puma_2655.log', 'w')
 at_exit { $log_file.close }
+
+class BugLogger
+  def self.log(msg, data={})
+    thread_str = Thread.current.name.nil? ? Thread.current.inspect : Thread.current.name
+    data = {
+      pid: Process.pid,
+      thread: thread_str,
+    }.merge(data)
+    data_str = data.map {|k, v| "#{k}=#{v.inspect}"}.join(" ")
+    $log_file.puts("[#{Time.now}] #{msg} #{data_str}".strip)
+    $log_file.flush
+  end
+end
 
 class Puma::ThreadPool
   attr_accessor :control
@@ -12,9 +27,8 @@ class Puma::ThreadPool
     with_mutex do
       # --- DIFF STARTS HERE ---
       if @control
-          $log_file.puts "!!! busy_threads pid=#{Process.pid} @spawned=#{@spawned} @waiting=#{@waiting} @todo.size=#{@todo.size} busy_threads=#{@spawned - @waiting + @todo.size}"
-          $log_file.flush
-        end
+        BugLogger.log("busy_threads", {'@waiting': @waiting, '@spawned': @spawned, '@waiting': @waiting, '@todo.size': @todo.size, busy_threads: @spawned - @waiting + @todo.size})
+      end
       # --- DIFF ENDS HERE ---
       @spawned - @waiting + @todo.size
     end
@@ -27,8 +41,7 @@ class Puma::ThreadPool
       Puma.set_thread_name 'threadpool %03i' % spawned
       # --- DIFF STARTS HERE ---
       if @control
-        $log_file.puts "!!! spawning thread pid=#{Process.pid} thread=#{Thread.current.name.inspect} @spawned=#{@spawned}"
-        $log_file.flush
+        BugLogger.log("spawning thread", {'@spawned': @spawned})
       end
       # --- DIFF ENDS HERE ---
       todo  = @todo
@@ -51,8 +64,7 @@ class Puma::ThreadPool
 
               # --- DIFF STARTS HERE ---
               if @control
-                $log_file.puts "!!! trimming thread pid=#{Process.pid} thread=#{Thread.current.name.inspect} @spawned=#{@spawned} @waiting=#{@waiting} @trim_requested=#{@trim_requested}"
-                $log_file.flush
+                BugLogger.log("trimming thread", {'@spawned': @spawned, '@waiting': @waiting, '@trim_requested': @trim_requested})
               end
               # --- DIFF ENDS HERE ---
 
@@ -79,6 +91,12 @@ class Puma::ThreadPool
         end
 
         begin
+          # --- DIFF STARTS HERE ---
+          if @control
+            BugLogger.log("executing work", {'@spawned': @spawned, '@waiting': @waiting, 'todo.size': todo.size})
+          end
+          # --- DIFF ENDS HERE ---
+
           @out_of_band_pending = true if block.call(work, *extra)
         rescue Exception => e
           STDERR.puts "Error reached top of thread-pool: #{e.message} (#{e.class})"
@@ -101,8 +119,7 @@ class Puma::ThreadPool
 
       # --- DIFF STARTS HERE ---
       if @control
-        $log_file.puts "!!! adding work << pid=#{Process.pid} @spawned=#{@spawned} @waiting=#{@waiting} @todo.size=#{@todo.size}"
-        $log_file.flush
+        BugLogger.log("adding work", {'@spawned': @spawned, '@waiting': @waiting, '@todo.size': @todo.size})
       end
 
       if @waiting < @todo.size and @spawned < @max
@@ -116,22 +133,32 @@ class Puma::ThreadPool
   def trim(force=false)
     with_mutex do
       free = @waiting - @todo.size
+
+      # --- DIFF STARTS HERE ---
+      if @control
+        BugLogger.log("checking if thread trimming is needed", {free: free, '@spawned': @spawned, '@todo.size': @todo.size, '@waiting': @waiting, '@trim_requested': @trim_requested})
+      end
+      # --- DIFF ENDS HERE ---
+
       if (force or free > 0) and @spawned - @trim_requested > @min
         @trim_requested += 1
+
         # --- DIFF STARTS HERE ---
         if @control
-          $log_file.puts "!!! requesting thread trim pid=#{Process.pid} @spawned=#{@spawned} @waiting=#{@waiting} @trim_requested=#{@trim_requested}"
-          $log_file.flush
+          BugLogger.log("requesting thread trim", {free: free, '@spawned': @spawned, '@todo.size': @todo.size, '@waiting': @waiting, '@trim_requested': @trim_requested})
         end
         # --- DIFF ENDS HERE ---
+
         @not_empty.signal
       end
     end
   end
 
+  # Override auto_trim! to enforce our own auto trim time in order to trigger
+  # the bug faster.
   alias_method :_orig_auto_trim!, :auto_trim!
-  def auto_trim!(timeout=0.1)
-    _orig_auto_trim!(timeout)
+  def auto_trim!(_timeout)
+    _orig_auto_trim!(FORCE_AUTO_TRIM_TIME)
   end
 end
 
